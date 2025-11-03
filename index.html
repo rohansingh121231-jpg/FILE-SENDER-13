@@ -6,7 +6,6 @@
     <title>QR Send - E2E Encrypted File Transfer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <!-- QR Scanner Library -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     
     <style>
@@ -363,9 +362,6 @@
             border-color: #2d8e47;
         }
 
-        /* ============================================
-           CRITICAL FIX: Fullscreen Scanner Modal
-           ============================================ */
         .scanner-modal {
             position: fixed;
             top: 0;
@@ -420,9 +416,6 @@
             transform: scale(1.1);
         }
 
-        /* ============================================
-           CRITICAL FIX: Fullscreen Camera View
-           ============================================ */
         #qr-reader {
             width: 100% !important;
             height: calc(100vh - 70px) !important;
@@ -439,7 +432,6 @@
             left: 0 !important;
         }
 
-        /* Scanner box ko bada aur visible banaya */
         #qr-reader__dashboard,
         #qr-reader__dashboard_section {
             display: none !important;
@@ -452,7 +444,6 @@
             border: none !important;
         }
 
-        /* Custom scanning indicator */
         .scan-indicator {
             position: absolute;
             top: 50%;
@@ -822,7 +813,6 @@
         </div>
     </div>
 
-    <!-- FIXED: Fullscreen Scanner Modal -->
     <div class="scanner-modal" id="scanner-modal">
         <div class="scanner-header">
             <h2>📷 Scan QR Code</h2>
@@ -830,7 +820,6 @@
         </div>
         <div id="qr-reader"></div>
         
-        <!-- Custom scan indicator overlay -->
         <div class="scan-indicator">
             <div class="scan-line"></div>
             <div class="scan-corners">
@@ -930,20 +919,20 @@
         }
 
         // ============================================
-        // CRITICAL FIX: Optimized Scanner Configuration
+        // CRITICAL FIX: Proper Client Mode Switch After Scan
         // ============================================
         let html5QrCode = null;
         let isScanning = false;
 
         function openScanner() {
             document.getElementById('scanner-modal').classList.add('active');
-            document.body.style.overflow = 'hidden'; // Prevent background scroll
+            document.body.style.overflow = 'hidden';
             startScanner();
         }
 
         function closeScanner() {
             document.getElementById('scanner-modal').classList.remove('active');
-            document.body.style.overflow = ''; // Restore scroll
+            document.body.style.overflow = '';
             stopScanner();
         }
 
@@ -953,11 +942,9 @@
 
             html5QrCode = new Html5Qrcode("qr-reader");
             
-            // CRITICAL: Optimized scanner configuration for speed and reliability
             const config = {
-                fps: 30, // Increased FPS for faster detection
+                fps: 30,
                 qrbox: function(viewfinderWidth, viewfinderHeight) {
-                    // Responsive QR box - 80% of smaller dimension
                     let minDimension = Math.min(viewfinderWidth, viewfinderHeight);
                     let qrboxSize = Math.floor(minDimension * 0.8);
                     return {
@@ -965,11 +952,11 @@
                         height: qrboxSize
                     };
                 },
-                aspectRatio: 1.0, // Square aspect ratio
-                disableFlip: false, // Allow scanning flipped QR codes
+                aspectRatio: 1.0,
+                disableFlip: false,
                 videoConstraints: {
-                    facingMode: "environment", // Rear camera
-                    focusMode: "continuous", // Auto-focus
+                    facingMode: "environment",
+                    focusMode: "continuous",
                     advanced: [
                         { zoom: 1.0 },
                         { focusDistance: 0 }
@@ -981,25 +968,45 @@
                 { facingMode: "environment" },
                 config,
                 (decodedText) => {
-                    console.log('✓ QR Code scanned:', decodedText);
+                    console.log('✓ QR scanned:', decodedText);
                     
-                    // Vibration feedback if available
                     if (navigator.vibrate) {
                         navigator.vibrate(200);
                     }
                     
-                    // Stop scanner immediately after successful scan
                     stopScanner();
                     closeScanner();
                     
-                    // Extract peer ID from URL
+                    // *** CRITICAL FIX: Properly handle scanned peer ID ***
                     try {
                         const url = new URL(decodedText);
-                        const peerId = url.hash.substring(1);
+                        const scannedPeerId = url.hash.substring(1);
                         
-                        if (peerId) {
-                            // Navigate to scanned URL
-                            window.location.href = decodedText;
+                        if (scannedPeerId) {
+                            console.log('→ Scanned Peer ID:', scannedPeerId);
+                            
+                            // *** FIX: Destroy current peer and switch to client mode ***
+                            if (window.appPeer && !window.appPeer.destroyed) {
+                                console.log('→ Destroying current peer to switch to client');
+                                window.appPeer.destroy();
+                            }
+                            
+                            // Clear current connection
+                            if (window.currentAppConnection) {
+                                try {
+                                    window.currentAppConnection.close();
+                                } catch (e) {}
+                                window.currentAppConnection = null;
+                            }
+                            
+                            // Set URL hash and reload to enter client mode
+                            window.location.hash = scannedPeerId;
+                            
+                            // Force reload to reinitialize as client
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 100);
+                            
                         } else {
                             alert('Invalid QR code format');
                         }
@@ -1009,20 +1016,20 @@
                     }
                 },
                 (errorMessage) => {
-                    // Silently handle scanning errors (too verbose otherwise)
+                    // Silent
                 }
             ).catch((err) => {
-                console.error('Scanner start error:', err);
+                console.error('Scanner error:', err);
                 isScanning = false;
                 
                 let errorMsg = 'Unable to access camera.';
                 
                 if (err.name === 'NotAllowedError') {
-                    errorMsg = 'Camera permission denied. Please allow camera access in settings.';
+                    errorMsg = 'Camera permission denied. Please allow camera access.';
                 } else if (err.name === 'NotFoundError') {
-                    errorMsg = 'No camera found on this device.';
+                    errorMsg = 'No camera found.';
                 } else if (err.name === 'NotReadableError') {
-                    errorMsg = 'Camera is being used by another app.';
+                    errorMsg = 'Camera in use by another app.';
                 }
                 
                 alert(errorMsg);
@@ -1037,7 +1044,7 @@
                     html5QrCode = null;
                     isScanning = false;
                 }).catch((err) => {
-                    console.error('Stop scanner error:', err);
+                    console.error('Stop error:', err);
                     isScanning = false;
                 });
             }
@@ -1059,7 +1066,7 @@
             }
         }
 
-        // Main PeerJS Code (same as before)
+        // Main PeerJS Code
         document.addEventListener('DOMContentLoaded', () => {
             const statusEl = document.getElementById('status');
             const qrCodeContainer = document.getElementById('qr-code-container');
@@ -1104,6 +1111,10 @@
             const MAX_RETRY = 3;
             let hasActiveTransfer = false;
             
+            // *** FIX: Store peer globally for scanner access ***
+            window.appPeer = null;
+            window.currentAppConnection = null;
+            
             window.addEventListener('beforeunload', (event) => {
                 if (hasActiveTransfer || isSending || isReceiving) {
                     const warningText = 'File transfer active!';
@@ -1130,6 +1141,7 @@
                 }
                 
                 currentConnection = null;
+                window.currentAppConnection = null;
                 connectionRetryCount = 0;
                 isHost = true;
                 statusEl.textContent = '🔄 Creating QR...';
@@ -1159,6 +1171,10 @@
                         },
                         debug: 1
                     });
+                    
+                    // *** FIX: Store globally ***
+                    window.appPeer = peer;
+                    
                 } catch (e) {
                     statusEl.textContent = '❌ Error';
                     return;
@@ -1166,12 +1182,18 @@
 
                 peer.on('open', (id) => {
                     myId = id;
+                    console.log('✓ My Peer ID:', myId);
                     const targetId = window.location.hash.substring(1);
 
                     if (targetId && !isHost) {
+                        // CLIENT MODE - Scanner se aaye hain
+                        console.log('→ CLIENT MODE: Connecting to', targetId);
+                        isHost = false;
                         statusEl.textContent = '🔗 Connecting...';
                         attemptConnection(targetId);
                     } else {
+                        // HOST MODE - QR generate karenge
+                        console.log('→ HOST MODE: Generating QR');
                         isHost = true;
                         qrCodeContainer.style.display = 'block';
                         scanInstructions.style.display = 'none';
@@ -1286,6 +1308,7 @@
 
             function setupConnection(conn) {
                 currentConnection = conn;
+                window.currentAppConnection = conn; // *** FIX: Store globally ***
                 showConnectionAnimation();
                 
                 statusEl.textContent = '🔐 Connected!';
@@ -1405,6 +1428,7 @@
                 if (currentConnection) {
                     try { currentConnection.close(); } catch (e) {}
                     currentConnection = null;
+                    window.currentAppConnection = null;
                 }
                 
                 isSending = false;
