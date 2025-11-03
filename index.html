@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>QR Send - E2E Encrypted File Transfer</title>
+    <title>QR Send - E2E Encrypted</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -862,7 +862,7 @@
         <div class="transfer-area">
             <h3>📁 Send Files</h3>
             <input type="file" id="file-input" disabled multiple>
-            <div id="transfer-status">Waiting for connection...</div>
+            <div id="transfer-status">Waiting...</div>
 
             <div id="progress-container" class="progress-container">
                 <div class="progress-label">
@@ -918,44 +918,35 @@
             toggleTheme();
         }
 
-        // ============================================
-        // CRITICAL FIX: Instant Client Mode Switch Without Reload
-        // ============================================
         let html5QrCode = null;
         let isScanning = false;
 
-        // Global app state
-        let appState = {
-            peer: null,
-            currentConnection: null,
-            statusEl: null,
-            qrCodeContainer: null,
-            scanInstructions: null,
-            fileInput: null,
-            transferStatusEl: null,
-            shareButtonsContainer: null,
-            isHost: false,
-            myId: '',
-            qrEl: null,
-            connectionRetryCount: 0,
-            switchToClientMode: null  // Function reference
-        };
+        // GLOBAL variables that MUST be accessible to scanner
+        window.APP_PEER = null;
+        window.APP_CONNECTION = null;
+        window.IS_SWITCHING = false;  // Prevent multiple switches
 
         function openScanner() {
+            console.log('📷 Opening scanner...');
             document.getElementById('scanner-modal').classList.add('active');
             document.body.style.overflow = 'hidden';
             startScanner();
         }
 
         function closeScanner() {
+            console.log('❌ Closing scanner...');
             document.getElementById('scanner-modal').classList.remove('active');
             document.body.style.overflow = '';
             stopScanner();
         }
 
         function startScanner() {
-            if (html5QrCode || isScanning) return;
+            if (html5QrCode || isScanning) {
+                console.log('⚠ Scanner already running');
+                return;
+            }
             isScanning = true;
+            console.log('🎥 Starting camera...');
 
             html5QrCode = new Html5Qrcode("qr-reader");
             
@@ -964,84 +955,76 @@
                 qrbox: function(viewfinderWidth, viewfinderHeight) {
                     let minDimension = Math.min(viewfinderWidth, viewfinderHeight);
                     let qrboxSize = Math.floor(minDimension * 0.8);
-                    return {
-                        width: qrboxSize,
-                        height: qrboxSize
-                    };
+                    return { width: qrboxSize, height: qrboxSize };
                 },
                 aspectRatio: 1.0,
-                disableFlip: false,
-                videoConstraints: {
-                    facingMode: "environment",
-                    focusMode: "continuous",
-                    advanced: [
-                        { zoom: 1.0 },
-                        { focusDistance: 0 }
-                    ]
-                }
+                disableFlip: false
             };
             
             html5QrCode.start(
                 { facingMode: "environment" },
                 config,
                 (decodedText) => {
-                    console.log('✓ QR scanned:', decodedText);
+                    console.log('✓✓✓ QR SCANNED:', decodedText);
                     
                     if (navigator.vibrate) {
                         navigator.vibrate(200);
                     }
                     
+                    // IMMEDIATELY stop scanner
                     stopScanner();
                     closeScanner();
                     
-                    // *** CRITICAL FIX: Instant switch to client mode ***
+                    // Extract peer ID
                     try {
                         const url = new URL(decodedText);
                         const scannedPeerId = url.hash.substring(1);
                         
-                        if (scannedPeerId && appState.switchToClientMode) {
-                            console.log('→ Scanned Peer ID:', scannedPeerId);
-                            console.log('→ Switching to CLIENT mode instantly...');
+                        console.log('🎯 Extracted Peer ID:', scannedPeerId);
+                        
+                        if (scannedPeerId && !window.IS_SWITCHING) {
+                            window.IS_SWITCHING = true;
+                            console.log('🔄 TRIGGERING CLIENT MODE SWITCH...');
                             
-                            // Call the instant switch function
-                            appState.switchToClientMode(scannedPeerId);
-                            
-                        } else {
+                            // Call the global switch function
+                            if (window.switchToClientAndConnect) {
+                                window.switchToClientAndConnect(scannedPeerId);
+                            } else {
+                                console.error('❌ Switch function not found!');
+                                alert('Error: Cannot switch to client mode');
+                                window.IS_SWITCHING = false;
+                            }
+                        } else if (!scannedPeerId) {
+                            console.error('❌ Invalid peer ID');
                             alert('Invalid QR code format');
+                        } else {
+                            console.log('⚠ Already switching...');
                         }
                     } catch (e) {
-                        console.error('QR parse error:', e);
-                        alert('Invalid QR code. Please scan a valid QR Send code.');
+                        console.error('❌ QR parse error:', e);
+                        alert('Invalid QR code');
+                        window.IS_SWITCHING = false;
                     }
                 },
                 (errorMessage) => {
                     // Silent
                 }
             ).catch((err) => {
-                console.error('Scanner error:', err);
+                console.error('❌ Scanner error:', err);
                 isScanning = false;
-                
-                let errorMsg = 'Unable to access camera.';
-                
-                if (err.name === 'NotAllowedError') {
-                    errorMsg = 'Camera permission denied.';
-                } else if (err.name === 'NotFoundError') {
-                    errorMsg = 'No camera found.';
-                } else if (err.name === 'NotReadableError') {
-                    errorMsg = 'Camera in use.';
-                }
-                
-                alert(errorMsg);
+                alert('Camera error: ' + err.name);
                 closeScanner();
             });
         }
 
         function stopScanner() {
             if (html5QrCode && isScanning) {
+                console.log('🛑 Stopping scanner...');
                 html5QrCode.stop().then(() => {
                     html5QrCode.clear();
                     html5QrCode = null;
                     isScanning = false;
+                    console.log('✓ Scanner stopped');
                 }).catch((err) => {
                     console.error('Stop error:', err);
                     isScanning = false;
@@ -1065,16 +1048,16 @@
             }
         }
 
-        // Main PeerJS Code
         document.addEventListener('DOMContentLoaded', () => {
-            // Store DOM references in appState
-            appState.statusEl = document.getElementById('status');
-            appState.qrCodeContainer = document.getElementById('qr-code-container');
-            appState.qrEl = document.getElementById('qrcode');
-            appState.scanInstructions = document.getElementById('scan-instructions');
-            appState.fileInput = document.getElementById('file-input');
-            appState.transferStatusEl = document.getElementById('transfer-status');
-            appState.shareButtonsContainer = document.getElementById('share-buttons-container');
+            console.log('🚀 App initialized');
+            
+            const statusEl = document.getElementById('status');
+            const qrCodeContainer = document.getElementById('qr-code-container');
+            const qrEl = document.getElementById('qrcode');
+            const scanInstructions = document.getElementById('scan-instructions');
+            const fileInput = document.getElementById('file-input');
+            const transferStatusEl = document.getElementById('transfer-status');
+            const shareButtonsContainer = document.getElementById('share-buttons-container');
 
             const nativeShareButton = document.getElementById('native-share-button');
             const copyLinkButton = document.getElementById('copy-link-button');
@@ -1094,18 +1077,24 @@
 
             const CHUNK_SIZE = 64 * 1024;
 
+            let peer = null;
+            let currentConnection = null;
+            let myId = '';
+            let connectUrl = '';
+            let isHost = false;
+            let connectionRetryCount = 0;
+            const MAX_RETRY = 3;
+            
             let fileQueue = [];
             let isSending = false;
             let isReceiving = false;
             let cancelTransfer = false;
             let hasActiveTransfer = false;
             let heartbeatInterval = null;
-            const MAX_RETRY = 3;
-            let connectUrl = '';
             
             window.addEventListener('beforeunload', (event) => {
                 if (hasActiveTransfer || isSending || isReceiving) {
-                    const warningText = 'File transfer active!';
+                    const warningText = 'Transfer active!';
                     event.preventDefault();
                     event.returnValue = warningText;
                     return warningText;
@@ -1120,128 +1109,130 @@
                 }
             }
 
-            function switchToHostMode(reason) {
-                console.log('→ Switch to host:', reason);
-                clearHashFromUrl();
-                
-                if (appState.peer && !appState.peer.destroyed) {
-                    try { appState.peer.destroy(); } catch (e) {}
-                }
-                
-                appState.currentConnection = null;
-                appState.connectionRetryCount = 0;
-                appState.isHost = true;
-                appState.statusEl.textContent = '🔄 Creating QR...';
-                
-                setTimeout(() => initializePeer(), 1000);
-            }
-
             // ============================================
-            // CRITICAL FIX: Instant Client Mode Switch Function
+            // CRITICAL: Global Switch Function
             // ============================================
-            function instantSwitchToClientMode(targetPeerId) {
-                console.log('=== INSTANT SWITCH TO CLIENT MODE ===');
-                console.log('Target Peer ID:', targetPeerId);
+            window.switchToClientAndConnect = function(targetPeerId) {
+                console.log('===================================');
+                console.log('🔄 SWITCHING TO CLIENT MODE');
+                console.log('Target Peer:', targetPeerId);
+                console.log('===================================');
                 
-                // 1. Destroy current peer immediately
-                if (appState.peer && !appState.peer.destroyed) {
-                    console.log('→ Destroying current peer');
+                // 1. Update UI IMMEDIATELY
+                console.log('1️⃣ Hiding QR, showing connecting...');
+                qrCodeContainer.style.display = 'none';
+                shareButtonsContainer.style.display = 'none';
+                scanInstructions.style.display = 'none';
+                statusEl.textContent = '🔗 Connecting to peer...';
+                transferStatusEl.textContent = 'Connecting...';
+                
+                // 2. Destroy old peer
+                console.log('2️⃣ Destroying old peer...');
+                if (peer && !peer.destroyed) {
                     try {
-                        appState.peer.destroy();
+                        peer.destroy();
+                        console.log('✓ Peer destroyed');
                     } catch (e) {
                         console.error('Peer destroy error:', e);
                     }
                 }
                 
-                // 2. Close current connection if any
-                if (appState.currentConnection) {
+                // 3. Close old connection
+                if (currentConnection) {
                     try {
-                        appState.currentConnection.close();
+                        currentConnection.close();
                     } catch (e) {}
-                    appState.currentConnection = null;
+                    currentConnection = null;
                 }
+                window.APP_CONNECTION = null;
                 
-                // 3. Update UI immediately
-                appState.qrCodeContainer.style.display = 'none';
-                appState.shareButtonsContainer.style.display = 'none';
-                appState.scanInstructions.style.display = 'none';
-                appState.statusEl.textContent = '🔗 Connecting...';
+                // 4. Set mode
+                isHost = false;
+                connectionRetryCount = 0;
+                console.log('3️⃣ Mode set to CLIENT');
                 
-                // 4. Set as client mode
-                appState.isHost = false;
-                appState.connectionRetryCount = 0;
-                
-                // 5. Initialize new peer as CLIENT
-                console.log('→ Initializing new peer as CLIENT');
-                
-                try {
-                    appState.peer = new Peer({
-                        config: {
-                            iceServers: [
-                                { urls: 'stun:stun.l.google.com:19302' },
-                                { urls: 'stun:stun1.l.google.com:19302' },
-                                { 
-                                    urls: 'turn:openrelay.metered.ca:80',
-                                    username: 'openrelayproject',
-                                    credential: 'openrelayproject'
-                                },
-                                {
-                                    urls: 'turn:openrelay.metered.ca:443',
-                                    username: 'openrelayproject',
-                                    credential: 'openrelayproject'
-                                }
-                            ],
-                            sdpSemantics: 'unified-plan'
-                        },
-                        debug: 1
-                    });
-                    
-                    appState.peer.on('open', (myNewId) => {
-                        console.log('✓ New Peer ID:', myNewId);
-                        appState.myId = myNewId;
+                // 5. Create NEW peer
+                console.log('4️⃣ Creating new client peer...');
+                setTimeout(() => {
+                    try {
+                        peer = new Peer({
+                            config: {
+                                iceServers: [
+                                    { urls: 'stun:stun.l.google.com:19302' },
+                                    { 
+                                        urls: 'turn:openrelay.metered.ca:80',
+                                        username: 'openrelayproject',
+                                        credential: 'openrelayproject'
+                                    }
+                                ],
+                                sdpSemantics: 'unified-plan'
+                            },
+                            debug: 1
+                        });
                         
-                        // 6. Immediately connect to target
-                        console.log('→ Connecting to target:', targetPeerId);
-                        attemptConnection(targetPeerId);
-                    });
-                    
-                    appState.peer.on('error', (err) => {
-                        console.error('Client peer error:', err);
-                        if (err.type === 'peer-unavailable') {
-                            if (appState.connectionRetryCount < MAX_RETRY) {
-                                appState.connectionRetryCount++;
-                                appState.statusEl.textContent = `🔄 Retry ${appState.connectionRetryCount}`;
-                                setTimeout(() => attemptConnection(targetPeerId), 2000);
+                        window.APP_PEER = peer;
+                        console.log('✓ New peer created');
+                        
+                        peer.on('open', (newMyId) => {
+                            console.log('✓✓ New Peer ID:', newMyId);
+                            myId = newMyId;
+                            
+                            // 6. CONNECT IMMEDIATELY
+                            console.log('5️⃣ Connecting to target:', targetPeerId);
+                            attemptConnection(targetPeerId);
+                        });
+                        
+                        peer.on('error', (err) => {
+                            console.error('❌ Client peer error:', err.type);
+                            if (err.type === 'peer-unavailable') {
+                                if (connectionRetryCount < MAX_RETRY) {
+                                    connectionRetryCount++;
+                                    statusEl.textContent = `🔄 Retry ${connectionRetryCount}`;
+                                    setTimeout(() => attemptConnection(targetPeerId), 2000);
+                                } else {
+                                    statusEl.textContent = '❌ Not found';
+                                    showSwitchButton();
+                                    window.IS_SWITCHING = false;
+                                }
                             } else {
-                                appState.statusEl.textContent = '❌ Not found';
-                                showSwitchButton();
+                                window.IS_SWITCHING = false;
                             }
-                        }
-                    });
-                    
-                } catch (e) {
-                    console.error('Failed to create client peer:', e);
-                    appState.statusEl.textContent = '❌ Error';
+                        });
+                        
+                    } catch (e) {
+                        console.error('❌ Failed to create peer:', e);
+                        statusEl.textContent = '❌ Error';
+                        window.IS_SWITCHING = false;
+                    }
+                }, 500);  // Small delay to ensure old peer is fully destroyed
+            };
+
+            function switchToHostMode(reason) {
+                console.log('→ Switch to host:', reason);
+                clearHashFromUrl();
+                
+                if (peer && !peer.destroyed) {
+                    try { peer.destroy(); } catch (e) {}
                 }
+                
+                currentConnection = null;
+                window.APP_CONNECTION = null;
+                connectionRetryCount = 0;
+                isHost = true;
+                statusEl.textContent = '🔄 Creating QR...';
+                
+                setTimeout(() => initializePeer(), 1000);
             }
-            
-            // Store the function in appState so scanner can access it
-            appState.switchToClientMode = instantSwitchToClientMode;
 
             function initializePeer() {
+                console.log('🔧 Initializing peer...');
                 try {
-                    appState.peer = new Peer({
+                    peer = new Peer({
                         config: {
                             iceServers: [
                                 { urls: 'stun:stun.l.google.com:19302' },
-                                { urls: 'stun:stun1.l.google.com:19302' },
                                 { 
                                     urls: 'turn:openrelay.metered.ca:80',
-                                    username: 'openrelayproject',
-                                    credential: 'openrelayproject'
-                                },
-                                {
-                                    urls: 'turn:openrelay.metered.ca:443',
                                     username: 'openrelayproject',
                                     credential: 'openrelayproject'
                                 }
@@ -1251,33 +1242,34 @@
                         debug: 1
                     });
                     
+                    window.APP_PEER = peer;
+                    
                 } catch (e) {
-                    appState.statusEl.textContent = '❌ Error';
+                    console.error('❌ Init error:', e);
+                    statusEl.textContent = '❌ Error';
                     return;
                 }
 
-                appState.peer.on('open', (id) => {
-                    appState.myId = id;
+                peer.on('open', (id) => {
+                    myId = id;
                     console.log('✓ Peer ID:', id);
                     const targetId = window.location.hash.substring(1);
 
-                    if (targetId && !appState.isHost) {
-                        // CLIENT MODE
+                    if (targetId && !isHost) {
                         console.log('→ CLIENT MODE');
-                        appState.isHost = false;
-                        appState.statusEl.textContent = '🔗 Connecting...';
+                        isHost = false;
+                        statusEl.textContent = '🔗 Connecting...';
                         attemptConnection(targetId);
                     } else {
-                        // HOST MODE
                         console.log('→ HOST MODE');
-                        appState.isHost = true;
-                        appState.qrCodeContainer.style.display = 'block';
-                        appState.scanInstructions.style.display = 'none';
+                        isHost = true;
+                        qrCodeContainer.style.display = 'block';
+                        scanInstructions.style.display = 'none';
                         
                         connectUrl = `${window.location.origin}${window.location.pathname}#${id}`;
-                        appState.qrEl.innerHTML = '';
+                        qrEl.innerHTML = '';
                         
-                        new QRCode(appState.qrEl, {
+                        new QRCode(qrEl, {
                             text: connectUrl,
                             width: 256,
                             height: 256,
@@ -1286,19 +1278,20 @@
                             correctLevel: QRCode.CorrectLevel.H
                         });
                         
-                        appState.shareButtonsContainer.style.display = 'flex';
+                        shareButtonsContainer.style.display = 'flex';
                         setTimeout(setupShareButton, 100);
-                        appState.statusEl.textContent = '✅ Ready';
+                        statusEl.textContent = '✅ Ready';
                     }
                 });
 
-                appState.peer.on('connection', (conn) => {
-                    if (appState.currentConnection) {
+                peer.on('connection', (conn) => {
+                    console.log('📡 Incoming connection');
+                    if (currentConnection) {
                         conn.close();
                         return;
                     }
                     
-                    appState.statusEl.textContent = '📡 Incoming...';
+                    statusEl.textContent = '📡 Incoming...';
                     
                     if (conn.open) {
                         setupConnection(conn);
@@ -1307,17 +1300,18 @@
                     }
                 });
 
-                appState.peer.on('error', (err) => {
+                peer.on('error', (err) => {
+                    console.error('❌ Peer error:', err.type);
                     if (err.type === 'peer-unavailable') {
-                        if (!appState.isHost && appState.connectionRetryCount < MAX_RETRY) {
-                            appState.connectionRetryCount++;
-                            appState.statusEl.textContent = `🔄 Retry ${appState.connectionRetryCount}`;
+                        if (!isHost && connectionRetryCount < MAX_RETRY) {
+                            connectionRetryCount++;
+                            statusEl.textContent = `🔄 Retry ${connectionRetryCount}`;
                             setTimeout(() => {
                                 const targetId = window.location.hash.substring(1);
                                 if (targetId) attemptConnection(targetId);
                             }, 2000);
-                        } else if (!appState.isHost) {
-                            appState.statusEl.textContent = '❌ Not found';
+                        } else if (!isHost) {
+                            statusEl.textContent = '❌ Not found';
                             showSwitchButton();
                         }
                     }
@@ -1339,6 +1333,7 @@
             }
 
             function attemptConnection(targetId) {
+                console.log('→ Attempting connection to:', targetId);
                 let connectionFailed = false;
                 let connectionTimer = null;
                 
@@ -1346,71 +1341,83 @@
                     if (connectionFailed) return;
                     connectionFailed = true;
                     if (connectionTimer) clearTimeout(connectionTimer);
+                    console.error('❌ Connection failed:', message);
                     
-                    if (appState.connectionRetryCount < MAX_RETRY) {
-                        appState.connectionRetryCount++;
-                        appState.statusEl.textContent = `🔄 Retry ${appState.connectionRetryCount}`;
+                    if (connectionRetryCount < MAX_RETRY) {
+                        connectionRetryCount++;
+                        statusEl.textContent = `🔄 Retry ${connectionRetryCount}`;
                         setTimeout(() => attemptConnection(targetId), 2000);
                     } else {
-                        appState.statusEl.textContent = '❌ Failed';
+                        statusEl.textContent = '❌ Failed';
                         showSwitchButton();
+                        window.IS_SWITCHING = false;
                     }
                 };
 
                 try {
                     connectionTimer = setTimeout(() => handleFailure('Timeout'), 20000);
                     
-                    const conn = appState.peer.connect(targetId, { 
+                    const conn = peer.connect(targetId, { 
                         reliable: true,
                         serialization: 'binary'
                     });
 
                     conn.on('open', () => {
+                        console.log('✓✓✓ CONNECTION OPENED!');
                         clearTimeout(connectionTimer);
                         if (!connectionFailed) {
-                            appState.connectionRetryCount = 0;
+                            connectionRetryCount = 0;
+                            window.IS_SWITCHING = false;
                             setupConnection(conn);
                         }
                     });
 
-                    conn.on('error', () => handleFailure('Error'));
+                    conn.on('error', (err) => {
+                        console.error('❌ Connection error:', err);
+                        handleFailure('Error');
+                    });
+                    
                     conn.on('close', () => {
-                        if (!appState.currentConnection) handleFailure('Closed');
+                        console.log('⚠ Connection closed early');
+                        if (!currentConnection) handleFailure('Closed');
                     });
                 } catch (e) {
+                    console.error('❌ Connect exception:', e);
                     handleFailure('Failed');
                 }
             }
 
             function setupConnection(conn) {
-                appState.currentConnection = conn;
+                console.log('✓ Setup connection');
+                currentConnection = conn;
+                window.APP_CONNECTION = conn;
                 showConnectionAnimation();
                 
-                appState.statusEl.textContent = '🔐 Connected!';
-                appState.fileInput.disabled = false;
-                appState.transferStatusEl.textContent = '✅ Ready';
-                appState.qrCodeContainer.style.display = 'none';
-                appState.shareButtonsContainer.style.display = 'none';
-                appState.scanInstructions.style.display = 'block';
+                statusEl.textContent = '🔐 Connected!';
+                fileInput.disabled = false;
+                transferStatusEl.textContent = '✅ Ready';
+                qrCodeContainer.style.display = 'none';
+                shareButtonsContainer.style.display = 'none';
+                scanInstructions.style.display = 'block';
                 
                 const switchBtn = document.getElementById('switch-mode-btn');
                 if (switchBtn) switchBtn.remove();
                 
-                if (appState.isHost) startHeartbeat();
+                if (isHost) startHeartbeat();
                 
                 let incomingFileData = [];
                 let fileMetadata = {};
                 let receivedBytes = 0;
 
                 setTimeout(() => {
-                    if (appState.currentConnection && appState.currentConnection.open) {
-                        appState.currentConnection.send({ type: 'ready' });
+                    if (currentConnection && currentConnection.open) {
+                        currentConnection.send({ type: 'ready' });
                     }
                 }, 100);
 
                 conn.on('data', (data) => {
                     if (data.type === 'ready') {
-                        appState.statusEl.textContent = '✅ Ready!';
+                        statusEl.textContent = '✅ Ready!';
                         return;
                     }
                     
@@ -1428,7 +1435,7 @@
                         isReceiving = true;
                         hasActiveTransfer = true;
                         
-                        appState.transferStatusEl.textContent = `📥 ${fileMetadata.name}`;
+                        transferStatusEl.textContent = `📥 ${fileMetadata.name}`;
                         receiveProgressContainer.style.display = 'block';
                         receiveProgressBar.style.width = '0%';
                         receiveProgressPercentage.textContent = '0%';
@@ -1444,13 +1451,13 @@
                         a.remove();
                         setTimeout(() => URL.revokeObjectURL(downloadUrl), 100);
                         
-                        appState.transferStatusEl.textContent = `✅ Received`;
+                        transferStatusEl.textContent = `✅ Received`;
                         receiveProgressContainer.style.display = 'none';
                         isReceiving = false;
                         hasActiveTransfer = false;
                         incomingFileData = [];
                     } else if (data.type === 'cancel') {
-                        appState.transferStatusEl.textContent = '❌ Cancelled';
+                        transferStatusEl.textContent = '❌ Cancelled';
                         incomingFileData = [];
                         receiveProgressContainer.style.display = 'none';
                         isReceiving = false;
@@ -1477,9 +1484,9 @@
             function startHeartbeat() {
                 stopHeartbeat();
                 heartbeatInterval = setInterval(() => {
-                    if (appState.currentConnection && appState.currentConnection.open) {
+                    if (currentConnection && currentConnection.open) {
                         try {
-                            appState.currentConnection.send({ type: 'heartbeat-ping' });
+                            currentConnection.send({ type: 'heartbeat-ping' });
                         } catch (e) {}
                     }
                 }, 5000);
@@ -1493,16 +1500,18 @@
             }
             
             function handleDisconnect(message) {
+                console.log('⚠ Disconnect:', message);
                 stopHeartbeat();
-                if (!appState.currentConnection && !appState.peer) return;
+                if (!currentConnection && !peer) return;
                 
-                appState.statusEl.textContent = '⚠️ Disconnected';
-                appState.transferStatusEl.textContent = 'Not connected';
-                appState.fileInput.disabled = true;
+                statusEl.textContent = '⚠️ Disconnected';
+                transferStatusEl.textContent = 'Not connected';
+                fileInput.disabled = true;
                 
-                if (appState.currentConnection) {
-                    try { appState.currentConnection.close(); } catch (e) {}
-                    appState.currentConnection = null;
+                if (currentConnection) {
+                    try { currentConnection.close(); } catch (e) {}
+                    currentConnection = null;
+                    window.APP_CONNECTION = null;
                 }
                 
                 isSending = false;
@@ -1515,14 +1524,14 @@
                 setTimeout(() => switchToHostMode('Disconnected'), 1500);
             }
 
-            appState.fileInput.addEventListener('change', (event) => {
+            fileInput.addEventListener('change', (event) => {
                 for (const file of event.target.files) {
                     fileQueue.push(file);
                 }
                 event.target.value = null;
-                appState.transferStatusEl.textContent = `📁 ${fileQueue.length} queued`;
+                transferStatusEl.textContent = `📁 ${fileQueue.length} queued`;
                 
-                if (appState.currentConnection && appState.currentConnection.open && !isSending) {
+                if (currentConnection && currentConnection.open && !isSending) {
                     sendNextFileFromQueue();
                 }
             });
@@ -1531,24 +1540,24 @@
                 if (fileQueue.length === 0) {
                     isSending = false;
                     hasActiveTransfer = false;
-                    appState.transferStatusEl.textContent = '✅ All sent!';
+                    transferStatusEl.textContent = '✅ All sent!';
                     return;
                 }
                 
-                if (!appState.currentConnection || !appState.currentConnection.open || isSending) return;
+                if (!currentConnection || !currentConnection.open || isSending) return;
                 
                 isSending = true;
                 hasActiveTransfer = true;
                 cancelTransfer = false;
                 const file = fileQueue.shift();
                 
-                appState.transferStatusEl.textContent = `📤 ${file.name}`;
+                transferStatusEl.textContent = `📤 ${file.name}`;
                 progressContainer.style.display = 'block';
                 
                 const startTime = Date.now();
 
                 try {
-                    appState.currentConnection.send({
+                    currentConnection.send({
                         type: 'metadata',
                         name: file.name,
                         size: file.size,
@@ -1568,16 +1577,16 @@
                         hasActiveTransfer = false;
                         fileQueue = [];
                         progressContainer.style.display = 'none';
-                        appState.transferStatusEl.textContent = '❌ Cancelled';
-                        if(appState.currentConnection && appState.currentConnection.open) {
+                        transferStatusEl.textContent = '❌ Cancelled';
+                        if(currentConnection && currentConnection.open) {
                              try {
-                                 appState.currentConnection.send({ type: 'cancel' });
+                                 currentConnection.send({ type: 'cancel' });
                              } catch (err) {}
                         }
                         return;
                     }
                     
-                    if(!appState.currentConnection || !appState.currentConnection.open) {
+                    if(!currentConnection || !currentConnection.open) {
                         isSending = false;
                         hasActiveTransfer = false;
                         handleDisconnect('Lost');
@@ -1585,14 +1594,14 @@
                     }
                 
                     try {
-                        appState.currentConnection.send(e.target.result);
+                        currentConnection.send(e.target.result);
                         offset += e.target.result.byteLength;
                         updateProgress(offset, file.size, startTime);
 
                         if (offset < file.size) {
                             readSlice(offset);
                         } else {
-                            appState.currentConnection.send({ type: 'end' });
+                            currentConnection.send({ type: 'end' });
                             isSending = false;
                             progressContainer.style.display = 'none';
                             sendNextFileFromQueue();
@@ -1605,7 +1614,7 @@
                 reader.onerror = (e) => {
                     isSending = false;
                     hasActiveTransfer = false;
-                    appState.transferStatusEl.textContent = '❌ Read error';
+                    transferStatusEl.textContent = '❌ Read error';
                     progressContainer.style.display = 'none';
                 };
 
@@ -1654,7 +1663,7 @@
             });
 
             function setupShareButton() {
-                const canvas = appState.qrEl.querySelector('canvas');
+                const canvas = qrEl.querySelector('canvas');
                 if (!canvas || typeof navigator.share === 'undefined') {
                     nativeShareButton.style.display = 'none';
                     copyLinkButton.style.display = 'inline-flex';
@@ -1715,7 +1724,7 @@
             
             function downloadQRCode() {
                 try {
-                    const canvas = appState.qrEl.querySelector('canvas');
+                    const canvas = qrEl.querySelector('canvas');
                     if (canvas) {
                         const dataUrl = canvas.toDataURL('image/png');
                         const a = document.createElement('a');
