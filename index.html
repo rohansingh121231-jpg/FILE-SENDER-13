@@ -1,8 +1,8 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>QR Send - E2E Encrypted File Transfer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -73,7 +73,6 @@
             100% { transform: translate(50px, 50px); }
         }
 
-        /* Theme Toggle */
         .theme-toggle {
             position: fixed;
             top: 15px;
@@ -104,7 +103,6 @@
             transition: all 0.3s ease;
         }
 
-        /* Watermark */
         .watermark {
             position: fixed;
             bottom: 15px;
@@ -141,7 +139,6 @@
             text-transform: uppercase;
         }
 
-        /* Main Container - Responsive */
         .container {
             position: relative;
             max-width: 450px;
@@ -167,7 +164,6 @@
                 0 0 0 1px var(--border);
         }
 
-        /* Custom Scrollbar */
         .container::-webkit-scrollbar {
             width: 6px;
         }
@@ -181,7 +177,6 @@
             border-radius: 3px;
         }
 
-        /* Header */
         header {
             background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
             padding: 20px;
@@ -220,7 +215,6 @@
             font-weight: 500;
         }
 
-        /* Connection Animation Overlay */
         .connection-overlay {
             position: fixed;
             top: 0;
@@ -287,7 +281,6 @@
             100% { stroke-dashoffset: 0; opacity: 1; }
         }
 
-        /* Main Content */
         main {
             padding: 20px;
         }
@@ -296,7 +289,6 @@
             text-align: center;
         }
 
-        /* Responsive QR Code */
         #qrcode {
             display: inline-block;
             padding: 15px;
@@ -324,7 +316,6 @@
             margin-bottom: 12px;
         }
 
-        /* Share Buttons */
         #share-buttons-container {
             display: flex;
             gap: 8px;
@@ -372,60 +363,56 @@
             border-color: #2d8e47;
         }
 
-        /* Scanner Modal */
+        /* ============================================
+           CRITICAL FIX: Fullscreen Scanner Modal
+           ============================================ */
         .scanner-modal {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.9);
+            background: #000000;
             display: none;
-            align-items: center;
-            justify-content: center;
+            flex-direction: column;
             z-index: 10000;
-            padding: 20px;
+            padding: 0;
         }
 
         .scanner-modal.active {
             display: flex;
         }
 
-        .scanner-content {
-            background: var(--bg-card);
-            border-radius: 16px;
-            padding: 20px;
-            max-width: 500px;
-            width: 100%;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-
         .scanner-header {
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
+            position: relative;
+            z-index: 10001;
         }
 
         .scanner-header h2 {
             font-size: 18px;
-            color: var(--text-primary);
+            color: white;
+            font-weight: 600;
         }
 
         .close-scanner {
             background: var(--error);
             color: white;
             border: none;
-            width: 35px;
-            height: 35px;
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
             cursor: pointer;
-            font-size: 20px;
+            font-size: 22px;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.3s ease;
+            font-weight: bold;
         }
 
         .close-scanner:hover {
@@ -433,19 +420,131 @@
             transform: scale(1.1);
         }
 
+        /* ============================================
+           CRITICAL FIX: Fullscreen Camera View
+           ============================================ */
         #qr-reader {
-            width: 100%;
-            border-radius: 12px;
-            overflow: hidden;
+            width: 100% !important;
+            height: calc(100vh - 70px) !important;
+            position: relative;
+            background: #000;
         }
 
         #qr-reader video {
             width: 100% !important;
-            height: auto !important;
-            border-radius: 8px;
+            height: 100% !important;
+            object-fit: cover !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
         }
 
-        /* Connected State */
+        /* Scanner box ko bada aur visible banaya */
+        #qr-reader__dashboard,
+        #qr-reader__dashboard_section {
+            display: none !important;
+        }
+
+        #qr-reader__scan_region {
+            width: 100% !important;
+            height: 100% !important;
+            position: relative !important;
+            border: none !important;
+        }
+
+        /* Custom scanning indicator */
+        .scan-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            max-width: 350px;
+            height: 80%;
+            max-height: 350px;
+            border: 3px solid var(--success);
+            border-radius: 20px;
+            z-index: 10000;
+            pointer-events: none;
+            box-shadow: 
+                0 0 0 2000px rgba(0, 0, 0, 0.5),
+                inset 0 0 30px rgba(52, 168, 83, 0.3);
+        }
+
+        .scan-line {
+            position: absolute;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--success), transparent);
+            animation: scan 2s linear infinite;
+        }
+
+        @keyframes scan {
+            0% { top: 0; }
+            100% { top: 100%; }
+        }
+
+        .scan-corners {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+
+        .corner {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border: 4px solid var(--success);
+        }
+
+        .corner.top-left {
+            top: -3px;
+            left: -3px;
+            border-right: none;
+            border-bottom: none;
+            border-radius: 20px 0 0 0;
+        }
+
+        .corner.top-right {
+            top: -3px;
+            right: -3px;
+            border-left: none;
+            border-bottom: none;
+            border-radius: 0 20px 0 0;
+        }
+
+        .corner.bottom-left {
+            bottom: -3px;
+            left: -3px;
+            border-right: none;
+            border-top: none;
+            border-radius: 0 0 0 20px;
+        }
+
+        .corner.bottom-right {
+            bottom: -3px;
+            right: -3px;
+            border-left: none;
+            border-top: none;
+            border-radius: 0 0 20px 0;
+        }
+
+        .scan-instruction {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            z-index: 10001;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
         #scan-instructions {
             text-align: center;
             animation: slideUp 0.5s ease;
@@ -477,7 +576,6 @@
             to { transform: rotate(360deg); }
         }
 
-        /* Transfer Area */
         .transfer-area {
             padding: 20px;
             background: var(--bg-secondary);
@@ -517,7 +615,6 @@
             text-align: center;
         }
 
-        /* Progress Container */
         .progress-container {
             margin-top: 15px;
             padding: 15px;
@@ -626,7 +723,6 @@
             box-shadow: 0 8px 20px rgba(255, 193, 7, 0.4);
         }
 
-        /* Responsive Design */
         @media (max-width: 600px) {
             body {
                 padding: 10px;
@@ -652,45 +748,15 @@
                 right: 10px;
             }
 
-            .theme-toggle svg {
-                width: 20px;
-                height: 20px;
+            .scan-indicator {
+                width: 85%;
+                height: 85%;
             }
 
-            .watermark {
-                bottom: 10px;
-                right: 10px;
-            }
-
-            .e2e-icon {
-                width: 24px;
-                height: 24px;
-            }
-
-            .watermark-text {
-                font-size: 8px;
-            }
-
-            main {
-                padding: 15px;
-            }
-
-            .transfer-area {
-                padding: 15px;
-            }
-
-            #qrcode {
-                padding: 12px;
-            }
-
-            .share-button {
-                padding: 8px 14px;
-                font-size: 12px;
-            }
-
-            .lock-svg {
-                width: 80px;
-                height: 80px;
+            .scan-instruction {
+                bottom: 80px;
+                font-size: 14px;
+                padding: 12px 20px;
             }
         }
 
@@ -715,7 +781,6 @@
 </head>
 <body>
 
-    <!-- Theme Toggle -->
     <div class="theme-toggle" onclick="toggleTheme()">
         <svg id="theme-icon-light" viewBox="0 0 24 24" style="display: none;">
             <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
@@ -725,7 +790,6 @@
         </svg>
     </div>
 
-    <!-- Watermark -->
     <div class="watermark">
         <svg class="e2e-icon" viewBox="0 0 24 24" fill="currentColor">
             <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
@@ -733,7 +797,6 @@
         <span class="watermark-text">Anonymous</span>
     </div>
 
-    <!-- Connection Animation Overlay -->
     <div class="connection-overlay" id="connection-overlay">
         <div class="lock-animation">
             <svg class="lock-svg" viewBox="0 0 100 100">
@@ -759,21 +822,30 @@
         </div>
     </div>
 
-    <!-- QR Scanner Modal -->
+    <!-- FIXED: Fullscreen Scanner Modal -->
     <div class="scanner-modal" id="scanner-modal">
-        <div class="scanner-content">
-            <div class="scanner-header">
-                <h2>📷 Scan QR Code</h2>
-                <button class="close-scanner" onclick="closeScanner()">✕</button>
+        <div class="scanner-header">
+            <h2>📷 Scan QR Code</h2>
+            <button class="close-scanner" onclick="closeScanner()">✕</button>
+        </div>
+        <div id="qr-reader"></div>
+        
+        <!-- Custom scan indicator overlay -->
+        <div class="scan-indicator">
+            <div class="scan-line"></div>
+            <div class="scan-corners">
+                <div class="corner top-left"></div>
+                <div class="corner top-right"></div>
+                <div class="corner bottom-left"></div>
+                <div class="corner bottom-right"></div>
             </div>
-            <div id="qr-reader"></div>
-            <p style="text-align: center; margin-top: 10px; font-size: 12px; color: var(--text-secondary);">
-                Point camera at QR code to connect
-            </p>
+        </div>
+        
+        <div class="scan-instruction">
+            📱 Point camera at QR code
         </div>
     </div>
 
-    <!-- Main Container -->
     <div class="container">
         <header>
             <h1>QR Send Pro</h1>
@@ -845,7 +917,6 @@
     </div>
 
     <script>
-        // Theme Toggle
         function toggleTheme() {
             document.body.classList.toggle('dark-mode');
             const isDark = document.body.classList.contains('dark-mode');
@@ -858,32 +929,68 @@
             toggleTheme();
         }
 
-        // QR Scanner Functions
+        // ============================================
+        // CRITICAL FIX: Optimized Scanner Configuration
+        // ============================================
         let html5QrCode = null;
+        let isScanning = false;
 
         function openScanner() {
             document.getElementById('scanner-modal').classList.add('active');
+            document.body.style.overflow = 'hidden'; // Prevent background scroll
             startScanner();
         }
 
         function closeScanner() {
             document.getElementById('scanner-modal').classList.remove('active');
+            document.body.style.overflow = ''; // Restore scroll
             stopScanner();
         }
 
         function startScanner() {
-            if (html5QrCode) return;
+            if (html5QrCode || isScanning) return;
+            isScanning = true;
 
             html5QrCode = new Html5Qrcode("qr-reader");
             
+            // CRITICAL: Optimized scanner configuration for speed and reliability
+            const config = {
+                fps: 30, // Increased FPS for faster detection
+                qrbox: function(viewfinderWidth, viewfinderHeight) {
+                    // Responsive QR box - 80% of smaller dimension
+                    let minDimension = Math.min(viewfinderWidth, viewfinderHeight);
+                    let qrboxSize = Math.floor(minDimension * 0.8);
+                    return {
+                        width: qrboxSize,
+                        height: qrboxSize
+                    };
+                },
+                aspectRatio: 1.0, // Square aspect ratio
+                disableFlip: false, // Allow scanning flipped QR codes
+                videoConstraints: {
+                    facingMode: "environment", // Rear camera
+                    focusMode: "continuous", // Auto-focus
+                    advanced: [
+                        { zoom: 1.0 },
+                        { focusDistance: 0 }
+                    ]
+                }
+            };
+            
             html5QrCode.start(
                 { facingMode: "environment" },
-                {
-                    fps: 10,
-                    qrbox: { width: 250, height: 250 }
-                },
+                config,
                 (decodedText) => {
-                    console.log('QR Code scanned:', decodedText);
+                    console.log('✓ QR Code scanned:', decodedText);
+                    
+                    // Vibration feedback if available
+                    if (navigator.vibrate) {
+                        navigator.vibrate(200);
+                    }
+                    
+                    // Stop scanner immediately after successful scan
+                    stopScanner();
+                    closeScanner();
                     
                     // Extract peer ID from URL
                     try {
@@ -891,29 +998,47 @@
                         const peerId = url.hash.substring(1);
                         
                         if (peerId) {
-                            // Navigate to the scanned URL
+                            // Navigate to scanned URL
                             window.location.href = decodedText;
+                        } else {
+                            alert('Invalid QR code format');
                         }
                     } catch (e) {
+                        console.error('QR parse error:', e);
                         alert('Invalid QR code. Please scan a valid QR Send code.');
                     }
                 },
                 (errorMessage) => {
-                    // Silently handle scan errors
+                    // Silently handle scanning errors (too verbose otherwise)
                 }
             ).catch((err) => {
-                console.error('Scanner error:', err);
-                alert('Unable to access camera. Please check permissions.');
+                console.error('Scanner start error:', err);
+                isScanning = false;
+                
+                let errorMsg = 'Unable to access camera.';
+                
+                if (err.name === 'NotAllowedError') {
+                    errorMsg = 'Camera permission denied. Please allow camera access in settings.';
+                } else if (err.name === 'NotFoundError') {
+                    errorMsg = 'No camera found on this device.';
+                } else if (err.name === 'NotReadableError') {
+                    errorMsg = 'Camera is being used by another app.';
+                }
+                
+                alert(errorMsg);
                 closeScanner();
             });
         }
 
         function stopScanner() {
-            if (html5QrCode) {
+            if (html5QrCode && isScanning) {
                 html5QrCode.stop().then(() => {
+                    html5QrCode.clear();
                     html5QrCode = null;
+                    isScanning = false;
                 }).catch((err) => {
                     console.error('Stop scanner error:', err);
+                    isScanning = false;
                 });
             }
         }
@@ -934,7 +1059,7 @@
             }
         }
 
-        // Main PeerJS Code
+        // Main PeerJS Code (same as before)
         document.addEventListener('DOMContentLoaded', () => {
             const statusEl = document.getElementById('status');
             const qrCodeContainer = document.getElementById('qr-code-container');
@@ -997,7 +1122,7 @@
             }
 
             function switchToHostMode(reason) {
-                console.log('→ Switching to host:', reason);
+                console.log('→ Switch to host:', reason);
                 clearHashFromUrl();
                 
                 if (peer && !peer.destroyed) {
@@ -1035,7 +1160,7 @@
                         debug: 1
                     });
                 } catch (e) {
-                    statusEl.textContent = '❌ Error. Refresh.';
+                    statusEl.textContent = '❌ Error';
                     return;
                 }
 
@@ -1082,17 +1207,13 @@
                     } else {
                         conn.on('open', () => setupConnection(conn));
                     }
-                    
-                    conn.on('error', (err) => {
-                        statusEl.textContent = '❌ Error';
-                    });
                 });
 
                 peer.on('error', (err) => {
                     if (err.type === 'peer-unavailable') {
                         if (!isHost && connectionRetryCount < MAX_RETRY) {
                             connectionRetryCount++;
-                            statusEl.textContent = `🔄 Retry ${connectionRetryCount}/${MAX_RETRY}`;
+                            statusEl.textContent = `🔄 Retry ${connectionRetryCount}`;
                             setTimeout(() => {
                                 const targetId = window.location.hash.substring(1);
                                 if (targetId) attemptConnection(targetId);
@@ -1101,9 +1222,6 @@
                             statusEl.textContent = '❌ Not found';
                             showSwitchButton();
                         }
-                    } else if (err.type === 'network') {
-                        statusEl.textContent = '❌ Network error';
-                        if (!isHost) showSwitchButton();
                     }
                 });
             }
@@ -1133,7 +1251,7 @@
                     
                     if (connectionRetryCount < MAX_RETRY) {
                         connectionRetryCount++;
-                        statusEl.textContent = `🔄 Retry ${connectionRetryCount}/${MAX_RETRY}`;
+                        statusEl.textContent = `🔄 Retry ${connectionRetryCount}`;
                         setTimeout(() => attemptConnection(targetId), 2000);
                     } else {
                         statusEl.textContent = '❌ Failed';
@@ -1157,7 +1275,7 @@
                         }
                     });
 
-                    conn.on('error', (err) => handleFailure('Error'));
+                    conn.on('error', () => handleFailure('Error'));
                     conn.on('close', () => {
                         if (!currentConnection) handleFailure('Closed');
                     });
@@ -1251,7 +1369,7 @@
                 });
 
                 conn.on('close', () => handleDisconnect('Closed'));
-                conn.on('error', (err) => handleDisconnect('Error'));
+                conn.on('error', () => handleDisconnect('Error'));
                 
                 if (fileQueue.length > 0 && !isSending) {
                     setTimeout(() => sendNextFileFromQueue(), 500);
@@ -1421,7 +1539,7 @@
                 if (bytes === 0) return '0 B';
                 const k = 1024;
                 const dm = decimals < 0 ? 0 : decimals;
-                const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+                const sizes = ['B', 'KB', 'MB', 'GB'];
                 const i = Math.floor(Math.log(bytes) / Math.log(k));
                 return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
             }
